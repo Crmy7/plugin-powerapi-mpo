@@ -14,93 +14,6 @@ $dotenv->load();
 
 class PowerAPI_Controller
 {
-    function handle_powerapi_login()
-    {
-        // Check if the request has a valid nonce (security measure)
-        check_ajax_referer('powerapi_login_nonce', 'security');
-
-        // Check if the reCAPTCHA response is present in the POST data
-        if (isset($_POST['g-recaptcha-response'])) {
-            // Get the reCAPTCHA response
-            $recaptchaResponse = sanitize_text_field($_POST['g-recaptcha-response']);
-
-            // Verify the reCAPTCHA response
-            $recaptchaSecretKey = $_ENV['RECAPTCHA_SECRET_KEY'];
-            $verificationUrl = "https://www.google.com/recaptcha/api/siteverify";
-            $data = [
-                'secret' => $recaptchaSecretKey,
-                'response' => $recaptchaResponse,
-            ];
-
-            $options = [
-                'http' => [
-                    'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
-                    'method' => 'POST',
-                    'content' => http_build_query($data),
-                ],
-            ];
-
-            $context = stream_context_create($options);
-            $verificationResult = file_get_contents($verificationUrl, false, $context);
-            $verificationData = json_decode($verificationResult);
-
-            if ($verificationData->success !== true) {
-                // reCAPTCHA verification failed
-                echo json_encode(array('status' => 'error', 'message' => 'La vérification reCAPTCHA a échoué.'));
-                exit;
-            }
-        } else {
-            // reCAPTCHA response not found in POST data
-            echo json_encode(array('status' => 'error', 'message' => 'Veuillez compléter la vérification reCAPTCHA.'));
-            exit;
-        }
-
-        if (isset($_POST['email']) && isset($_POST['password'])) {
-            // Get the submitted email and password
-            $email = sanitize_email($_POST['email']);
-            $password = sanitize_text_field($_POST['password']);
-
-            // Make the POST request to the PowerAPI server
-            $url = 'https://api.powerapi.com/oauth/token';
-            $headers = [
-                'Content-Type: application/vnd.api+json',
-                'Accept: application/vnd.api+json',
-            ];
-            $data = [
-                'scope' => 'trusted public',
-                'grant_type' => 'password',
-                'email' => $email,
-                'password' => $password,
-            ];
-
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-
-            // Set cURL option to verify SSL certificates
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-            curl_close($ch);
-
-            if ($httpCode === 200) {
-                // Token retrieved successfully, return the token as the response
-                $token = json_decode($response, true)['access_token'];
-                echo json_encode(array('status' => 'success', 'token' => $token));
-            } else {
-                // Handle the error, return an error message as the response
-                echo json_encode(array('status' => 'error', 'message' => 'La connexion a échoué. Veuillez vérifier vos informations de connexion.'));
-            }
-        } else {
-            // Handle the error, return an error message as the response
-            echo json_encode(array('status' => 'error', 'message' => 'Demande non valide. Veuillez fournir une adresse électronique et un mot de passe valide.'));
-        }
-        exit; // Terminate the script after handling the AJAX request
-    }
 
     function generateRandomPassword()
     {
@@ -127,7 +40,7 @@ class PowerAPI_Controller
         $from_name = $_ENV['SUPPORT_NAME'];
 
         // Créer un objet e-mail pour le client
-        $subject = 'Votre compte ma-presence.online a été créé';
+        $subject = 'Vos accès à la plateforme ma-presence.online ont été créés.';
         $message = "
         Bonjour,
         <br><br>
@@ -160,7 +73,12 @@ class PowerAPI_Controller
         $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
 
         // Envoyer l'e-mail au client
-        wp_mail($customer_email, $subject, $message, $headers);
+        $envoi_email_client = wp_mail($customer_email, $subject, $message, $headers);
+        if ($envoi_email_client) {
+            echo 'E-mail envoyé avec succès à l\'adresse du client.';
+        } else {
+            echo 'Erreur lors de l\'envoi de l\'e-mail à l\'adresse du client.' . $customer_email;
+        }
 
         // Envoyer une copie de l'e-mail à l'adresse de support
         $support_email = getenv('SUPPORT_EMAIL'); // Adresse de support
@@ -174,7 +92,12 @@ class PowerAPI_Controller
         $support_headers .= "Content-Type: text/html; charset=UTF-8\r\n";
 
         // Envoyer l'e-mail à l'adresse de support
-        wp_mail($support_email, $support_subject, $support_message, $support_headers);
+        $envoi_email_support = wp_mail($support_email, $support_subject, $support_message, $support_headers);
+        if ($envoi_email_support) {
+            echo 'E-mail envoyé avec succès à l\'adresse de support.';
+        } else {
+            echo 'Erreur lors de l\'envoi de l\'e-mail à l\'adresse de support.' . $support_email;
+        }
     }
 
     // Gestion plus détaillée des erreurs avec journalisation
@@ -183,7 +106,7 @@ class PowerAPI_Controller
         try {
             // Adresse e-mail et mot de passe pour le compte utilisateur à créer
             $customer_email = sanitize_email($billing_email);
-            $password = generateRandomPassword();
+            $password = $this->generateRandomPassword();
 
             // URL de l'API pour créer le compte utilisateur
             $userUrl = "https://api.powerapi.com/api/v1/users";
@@ -235,6 +158,17 @@ class PowerAPI_Controller
                 curl_setopt($email_request, CURLOPT_POSTFIELDS, $email_data);
                 curl_setopt($email_request, CURLOPT_RETURNTRANSFER, true);
                 $email_response = curl_exec($email_request);
+                if (!$email_response) {
+                    $error_message = curl_error($email_request);
+                    throw new Exception('Erreur lors de l\'envoi des informations par e-mail.' . $error_message);
+                } else {
+                    if ($email_response === 'E-mail envoyé avec succès à l\'adresse du client.') {
+                        echo 'E-mail envoyé avec succès';
+                    } else {
+                        echo 'Erreur lors de l\'envoi de l\'e-mail.';
+                    }
+                }
+
 
                 // Vérifier les erreurs de cURL lors de l'envoi de l'e-mail
                 if (curl_errno($email_request)) {
@@ -293,7 +227,11 @@ class PowerAPI_Controller
                 $last_name = $order->get_billing_last_name();
 
                 // Obtenir l'ID du type de compte en fonction du produit commandé
-                $account_type_id = $product_account_type_map[$matching_product_ids[0]]; // Prendre le premier ID de produit correspondant
+                $first_matching_product_id = reset($matching_product_ids);
+                if (!isset($product_account_type_map[$first_matching_product_id])) {
+                    throw new Exception('ID du produit correspondant non trouvé dans le tableau de mappage.');
+                } // Prendre le premier ID de produit correspondant
+                $account_type_id = $product_account_type_map[$first_matching_product_id];
 
                 // Obtenez le token d'accès en utilisant la requête cURL
                 $token_request_url = 'https://api.powerapi.com/oauth/token';
@@ -328,7 +266,7 @@ class PowerAPI_Controller
                     $access_token = $token_data['access_token'];
 
                     // Créer le compte utilisateur en utilisant le token d'accès et l'ID du type de compte
-                    createUserAccount($first_name, $last_name, $billing_email, $access_token, $account_type_id);
+                    $this->createUserAccount($first_name, $last_name, $billing_email, $access_token, $account_type_id);
                 }
 
                 // Fermeture de la session cURL pour la récupération du token

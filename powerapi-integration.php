@@ -43,3 +43,10 @@ function powerapi_accounts_list_callback() {
     require_once plugin_dir_path(__FILE__) . 'views/accounts-list-table.php';
 }
 
+// load script , array(), null, true
+function powerapi_enqueue_scripts() {
+    wp_enqueue_script('powerapi-script', plugin_dir_url(__FILE__) . 'js/powerapi-script.js', array(), null, true);
+    wp_localize_script('powerapi-script', 'powerapi', array('ajaxurl' => admin_url('admin-ajax.php')));
+}
+
+add_action('wp_enqueue_scripts', 'powerapi_enqueue_scripts');
