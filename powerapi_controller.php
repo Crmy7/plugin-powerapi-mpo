@@ -12,7 +12,7 @@ require $rootPath . '/vendor/autoload.php';
 $dotenv = Dotenv\Dotenv::createImmutable($rootPath);
 $dotenv->load();
 
-class PowerAPI_Controller
+class PowerAPIController
 {
 
     function generateRandomPassword()
@@ -29,11 +29,11 @@ class PowerAPI_Controller
         return $password;
     }
 
-    function send_user_details()
+    function sendUserDetails($customer_email, $password)
     {
-        $customer_email = sanitize_email($_POST['customer_email']); // Récupérer l'adresse e-mail
-        $user_name = $customer_email;
-        $password = sanitize_text_field($_POST['password']); // Récupérer le mot de passe
+        // Sanitiser les paramètres reçus
+        $customer_email = sanitize_email($customer_email);
+        $password = sanitize_text_field($password);
 
         // Adresse e-mail de l'expéditeur
         $from_email = $_ENV['SUPPORT_EMAIL'];
@@ -48,9 +48,11 @@ class PowerAPI_Controller
         <br><br>
         Vos identifiants de connexion sont les suivants :
         <br><br>
-        * Nom d'utilisateur : $user_name
+        * Adresse e-mail de connexion : $customer_email
         <br>
         * Mot de passe : $password
+        <br><br>
+        Il est recommandé de modifier votre mot de passe dès votre première connexion en accédant à votre compte sur la plateforme et en naviguant vers Administration > Mon compte.    
         <br><br>
         Pour vous connecter, rendez-vous sur la page suivante :
         <br><br>
@@ -94,15 +96,16 @@ class PowerAPI_Controller
         // Envoyer l'e-mail à l'adresse de support
         $envoi_email_support = wp_mail($support_email, $support_subject, $support_message, $support_headers);
         if ($envoi_email_support) {
-            echo 'E-mail envoyé avec succès à l\'adresse de support.';
+            error_log('E-mail envoyé avec succès à l\'adresse de support.');
         } else {
-            echo 'Erreur lors de l\'envoi de l\'e-mail à l\'adresse de support.' . $support_email;
+            error_log('Erreur lors de l\'envoi de l\'e-mail à l\'adresse de support.' . $support_email);
         }
     }
 
-    // Gestion plus détaillée des erreurs avec journalisation
+    // Fonction pour créer un compte utilisateur
     function createUserAccount($first_name, $last_name, $billing_email, $access_token, $account_type_id)
     {
+        // Utilisation de blocs try-catch pour gérer les exceptions
         try {
             // Adresse e-mail et mot de passe pour le compte utilisateur à créer
             $customer_email = sanitize_email($billing_email);
@@ -122,14 +125,14 @@ class PowerAPI_Controller
                         "email" => $customer_email,
                         "password" => $password,
                         "password_confirmation" => $password,
-                        "source" => "partner", // Utilisez une valeur valide reconnue par l'API
+                        "source" => "partner",
                         "language" => "fr",
                         "terms_agreement" => true
                     )
                 )
             );
 
-            // Initialiser cURL pour créer le compte utilisateur
+            // Initialisation cURL pour créer le compte utilisateur
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $userUrl);
             curl_setopt($ch, CURLOPT_POST, true);
@@ -144,43 +147,12 @@ class PowerAPI_Controller
             if (curl_errno($ch)) {
                 throw new Exception('Erreur cURL : ' . curl_error($ch));
             } else {
-                // Réussite, récupérer les informations et envoyer l'e-mail
-                $email_response = json_decode($response, true);
-                $email_data = array(
-                    'customer_email' => $customer_email,
-                    'password' => $password
-                );
+                // Envoyer les informations par e-mail au client
+                $this->sendUserDetails($customer_email, $password);
 
-                // Envoyer les informations par requête POST à l'action WordPress
-                $send_user_details_url = admin_url('admin-ajax.php?action=send_user_details');
-                $email_request = curl_init($send_user_details_url);
-                curl_setopt($email_request, CURLOPT_POST, true);
-                curl_setopt($email_request, CURLOPT_POSTFIELDS, $email_data);
-                curl_setopt($email_request, CURLOPT_RETURNTRANSFER, true);
-                $email_response = curl_exec($email_request);
-                if (!$email_response) {
-                    $error_message = curl_error($email_request);
-                    throw new Exception('Erreur lors de l\'envoi des informations par e-mail.' . $error_message);
-                } else {
-                    if ($email_response === 'E-mail envoyé avec succès à l\'adresse du client.') {
-                        echo 'E-mail envoyé avec succès';
-                    } else {
-                        echo 'Erreur lors de l\'envoi de l\'e-mail.';
-                    }
-                }
-
-
-                // Vérifier les erreurs de cURL lors de l'envoi de l'e-mail
-                if (curl_errno($email_request)) {
-                    throw new Exception('Erreur cURL lors de l\'envoi de l\'e-mail : ' . curl_error($email_request));
-                } else {
-                    // Enregistrer les informations du compte dans la table powerapi_accounts
-                    $account_model = new PowerAPI_Account_Model();
-                    $account_model->insert_account($first_name, $last_name, $customer_email, $account_type_id);
-                }
-
-                // Fermeture de la session cURL pour l'envoi d'e-mail
-                curl_close($email_request);
+                // Enregistrer les informations du compte dans la table powerapi_accounts
+                $account_model = new PowerAPIAccountModel();
+                $account_model->insert_account($first_name, $last_name, $customer_email, $account_type_id);
             }
 
             // Fermeture de la session cURL pour la création du compte utilisateur
@@ -188,24 +160,24 @@ class PowerAPI_Controller
         } catch (Exception $e) {
             // Journalisation des erreurs
             error_log('Erreur lors de la création du compte utilisateur : ' . $e->getMessage());
-            // Ne pas afficher les erreurs au front
         }
     }
 
-    // Utilisation de blocs try-catch pour gérer les exceptions
-    function log_billing_email_on_order_completion($order_id)
+
+    // Fonction pour obtenir le token d'accès lors de la finalisation de la commande
+    function getTokenOnOrderCompletion($order_id)
     {
         try {
-            // Récupérer la commande
+            // Récupération de la commande
             $order = wc_get_order($order_id);
 
-            // Récupérer les ID de produit de la commande
+            // Récupération de l'ID de produit de la commande
             $product_ids = array();
             foreach ($order->get_items() as $item) {
                 $product_ids[] = $item->get_product_id();
             }
 
-            // Tableau de mappage entre les ID de produit et les ID de type de compte
+            // Associer les ID de produit aux types de compte
             $product_account_type_map = array(
                 28971 => 1,
                 29234 => 1,
@@ -213,15 +185,15 @@ class PowerAPI_Controller
                 29075 => 2,
             );
 
-            // ID de produit cible
+            // Définission des ID de produit cibles
             $target_product_ids = array_keys($product_account_type_map);
 
-            // Vérifier si l'un des ID de produit dans la commande correspond aux ID de produit cibles
+            // Vérification des ID de produit correspondants
             $matching_product_ids = array_intersect($product_ids, $target_product_ids);
 
-            // Si des ID de produit correspondants sont trouvés, exécutez le script
+            // Si des ID de produit correspondants sont trouvés
             if (!empty($matching_product_ids)) {
-                // Obtenir l'adresse e-mail de facturation
+                // Obtenir l'adresse e-mail de facturation et les prénoms et noms du client
                 $billing_email = $order->get_billing_email();
                 $first_name = $order->get_billing_first_name();
                 $last_name = $order->get_billing_last_name();
@@ -230,10 +202,10 @@ class PowerAPI_Controller
                 $first_matching_product_id = reset($matching_product_ids);
                 if (!isset($product_account_type_map[$first_matching_product_id])) {
                     throw new Exception('ID du produit correspondant non trouvé dans le tableau de mappage.');
-                } // Prendre le premier ID de produit correspondant
+                }
                 $account_type_id = $product_account_type_map[$first_matching_product_id];
 
-                // Obtenez le token d'accès en utilisant la requête cURL
+                // Obtenir le token d'accès en utilisant la requête cURL
                 $token_request_url = 'https://api.powerapi.com/oauth/token';
                 $token_request_data = array(
                     "scope" => "trusted public",
@@ -246,7 +218,7 @@ class PowerAPI_Controller
                     'Accept: application/vnd.api+json'
                 );
 
-                // Initialiser cURL pour obtenir le token
+                // Initialisation cURL pour obtenir le token
                 $ch = curl_init();
                 curl_setopt($ch, CURLOPT_URL, $token_request_url);
                 curl_setopt($ch, CURLOPT_POST, true);
@@ -257,7 +229,7 @@ class PowerAPI_Controller
                 // Exécution de la requête cURL pour obtenir le token
                 $token_response = curl_exec($ch);
 
-                // Vérifier les erreurs de cURL
+                // Vérification des erreurs de cURL
                 if (curl_errno($ch)) {
                     throw new Exception('Erreur cURL : ' . curl_error($ch));
                 } else {
@@ -265,7 +237,7 @@ class PowerAPI_Controller
                     $token_data = json_decode($token_response, true);
                     $access_token = $token_data['access_token'];
 
-                    // Créer le compte utilisateur en utilisant le token d'accès et l'ID du type de compte
+                    // Créer le compte utilisateur en utilisant le token d'accès et l'ID du type de compte et les informations du client
                     $this->createUserAccount($first_name, $last_name, $billing_email, $access_token, $account_type_id);
                 }
 
@@ -275,7 +247,6 @@ class PowerAPI_Controller
         } catch (Exception $e) {
             // Journalisation des erreurs
             error_log('Erreur lors de la récupération du token d\'accès ou de la création du compte utilisateur : ' . $e->getMessage());
-            // Ne pas afficher les erreurs au front
         }
     }
 }

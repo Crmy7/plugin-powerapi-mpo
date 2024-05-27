@@ -14,17 +14,17 @@ require_once plugin_dir_path(__FILE__) . 'powerapi_controller.php';
 require_once plugin_dir_path(__FILE__) . 'powerapi_account_model.php';
 
 // Initialize the PowerAPI controller
-$powerapi_controller = new PowerAPI_Controller();
+$powerapi_controller = new PowerAPIController();
 
-// Add action for handling PowerAPI login
-add_action('wp_ajax_handle_powerapi_login', array($powerapi_controller, 'handle_powerapi_login'));
-add_action('wp_ajax_nopriv_handle_powerapi_login', array($powerapi_controller, 'handle_powerapi_login'));
 
-add_action('wp_ajax_send_user_details', array($powerapi_controller, 'send_user_details'));
-add_action('wp_ajax_nopriv_send_user_details', array($powerapi_controller, 'send_user_details'));
+add_action('wp_ajax_sendUserDetails', array($powerapi_controller, 'sendUserDetails'));
+add_action('wp_ajax_nopriv_sendUserDetails', array($powerapi_controller, 'sendUserDetails'));
 
-// Add action for logging billing email on order completion
-add_action("woocommerce_thankyou", array($powerapi_controller, 'log_billing_email_on_order_completion'));
+// Add action pour récupérer le token lors de la validation de la commande
+add_action("woocommerce_thankyou", array($powerapi_controller, 'getTokenOnOrderCompletion'));
+
+// Add action pour mettre à jour le statut du compte PowerAPI lors de l'annulation d'un abonnement
+add_action('woocommerce_subscription_status_cancelled', 'updatePowerapiAccountStatus', 10, 1);
 
 function powerapi_admin_menu() {
     add_menu_page(

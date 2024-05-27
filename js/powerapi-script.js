@@ -1,22 +1,21 @@
-// Define a function to handle the form submission
+// Définir une fonction pour gérer la soumission du formulaire
 function handleFormSubmit(event) {
   event.preventDefault();
 
-  // Verify reCAPTCHA
+  // Vérifier reCAPTCHA
   const recaptchaResponse = grecaptcha.getResponse();
   if (!recaptchaResponse) {
-    // Display an error message if reCAPTCHA is not verified
+    // Afficher un message d'erreur si reCAPTCHA n'est pas vérifié
     const errorMessage = document.getElementById("error-message");
-    // errorMessage.textContent = 'Veuillez cocher la case reCAPTCHA.';
     errorMessage.style.display = "block";
     return;
   }
 
-  // Get the user's email and password from the form
+  // Obtenir l'e-mail et le mot de passe de l'utilisateur à partir du formulaire
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
 
-  // Make the POST request to the PowerAPI server to get the token
+  // Effectuer la requête POST vers le serveur PowerAPI pour obtenir le jeton
   const url = "https://api.powerapi.com/oauth/token";
   const headers = {
     "Content-Type": "application/vnd.api+json",
@@ -36,60 +35,59 @@ function handleFormSubmit(event) {
   })
     .then((response) => {
       if (!response.ok) {
-        throw new Error("Network response was not ok");
+        throw new Error("La réponse réseau n'était pas correcte");
       }
       return response.json();
     })
     .then((json) => {
-      // Token retrieved successfully, embed the PowerAPI iframe with the token in the URL
+      // Jeton récupéré avec succès, intégrer l'iframe PowerAPI avec le jeton dans l'URL
       const token = json.access_token;
 
-      // Check if the iframe already exists and has a valid token in its URL
+      // Vérifier si l'iframe existe déjà et a un jeton valide dans son URL
       const existingIframe = document.querySelector(
         "#powerapi-container iframe"
       );
       if (existingIframe && existingIframe.src.includes(token)) {
-        // If the iframe already exists and has the correct token, display it and hide the login form
+        // Si l'iframe existe déjà et a le bon jeton, l'afficher et masquer le formulaire de connexion
         const containerForm = document.querySelector(".container-form");
         containerForm.style.zIndex = "-1";
         const body = document.getElementsByTagName("body")[0];
         body.style.overflow = "auto";
         const powerapiContainer = document.getElementById("powerapi-container");
-        powerapiContainer.style.zIndex = "100";
+        powerapiContainer.style.zIndex = "999";
         powerapiContainer.style.visibility = "visible";
         return;
       }
 
-      // If the iframe doesn't exist or has an incorrect token, embed the iframe with the correct token
+      // Si l'iframe n'existe pas ou a un jeton incorrect, intégrer l'iframe avec le jeton correct
       embedPowerAPIFrame(token);
 
-      // Change the z-index of the container-form to -1
+      // Changer le z-index de container-form à -1
       const containerForm = document.querySelector(".container-form");
       containerForm.style.zIndex = "-1";
 
-      // Change the z-index of the powerapi-container to 1
+      // Changer le z-index de powerapi-container à 1
       const powerapiContainer = document.getElementById("powerapi-container");
-      powerapiContainer.style.zIndex = "100";
+      powerapiContainer.style.zIndex = "999";
       powerapiContainer.style.visibility = "visible";
       const body = document.getElementsByTagName("body")[0];
       body.style.overflow = "hidden";
 
-      // Hide the error message if it was previously displayed
+      // Masquer le message d'erreur s'il a été précédemment affiché
       const errorMessage = document.getElementById("error-message");
       errorMessage.style.display = "none";
     })
     .catch((error) => {
-      // Handle the error (e.g., show an error message to the user)
-      console.error("Error:", error);
+      // Gérer l'erreur (par exemple, afficher un message d'erreur à l'utilisateur)
+      console.error("Erreur :", error);
 
-      // Display the error message
+      // Afficher le message d'erreur
       const errorMessage = document.getElementById("error-message");
-      // errorMessage.textContent = 'La connexion a échoué. Veuillez vérifier vos informations de connexion.';
       errorMessage.style.display = "block";
     });
 }
 
-// Add an event listener to the form to call the handleFormSubmit function on submit
+// Ajouter un écouteur d'événements au formulaire pour appeler la fonction handleFormSubmit lors de la soumission
 document
   .getElementById("login-form")
   .addEventListener("submit", handleFormSubmit);
@@ -97,25 +95,25 @@ document
 function embedPowerAPIFrame(token) {
   const BASE_URL = "https://app.powerapi.com";
   const cssParam =
-    "https://ma-presence.online/wp-content/themes/ma-presence-online/css/PowerAPIStyles.css";
+    "https://ma-presence.online/wp-content/plugins/powerapi-integration/css/mpo.css";
   const url = new URL(BASE_URL);
   url.searchParams.append("access_token", token);
 
-  // Append the CSS parameter to the URL manually (without URL encoding)
+  // Ajouter le paramètre CSS à l'URL manuellement (sans encodage d'URL)
   url.search = url.search + "&tab=reviews" + "&css=" + cssParam;
 
-  // Generate the iframe element with the token in the URL
+  // Générer l'élément iframe avec le jeton dans l'URL
   const iframe = document.createElement("iframe");
   iframe.title = "PowerAPI";
   iframe.src = url.toString();
-  iframe.style.height = "100%"; // Set the iframe height to 100% of its container
+  iframe.style.height = "100%";
   iframe.setAttribute(
     "sandbox",
     "allow-same-origin allow-forms allow-scripts allow-popups"
-  ); // Add the 'sandbox' attribute
+  ); // Ajouter l'attribut 'sandbox'
   iframe.setAttribute("allow", "clipboard-write");
 
-  // Clear any previous content in the container
+  // Effacer tout contenu précédent dans
   const container = document.getElementById("powerapi-container");
   container.innerHTML = "";
 
@@ -133,7 +131,7 @@ function embedPowerAPIFrame(token) {
     // When the logout button is clicked, remove the iframe and reset the login form
     container.innerHTML = "";
     const containerForm = document.querySelector(".container-form");
-    containerForm.style.zIndex = "3";
+    containerForm.style.zIndex = "998";
     const powerapiContainer = document.getElementById("powerapi-container");
     powerapiContainer.style.zIndex = "-1";
     powerapiContainer.style.visibility = "hidden";

@@ -2,7 +2,7 @@
 global $wpdb;
 
 // Sécuriser la récupération des types de compte en utilisant des requêtes préparées
-$account_types_query = $wpdb->prepare("SELECT * FROM wp_946105_account_types");
+$account_types_query = $wpdb->prepare("SELECT * FROM {$wpdb->prefix}account_types");
 $account_types = $wpdb->get_results($account_types_query);
 
 // Vérifier si un filtre a été sélectionné en utilisant filter_input pour nettoyer les données entrantes
@@ -11,19 +11,16 @@ $sort_order = isset($_GET['sort']) && $_GET['sort'] === 'asc' ? 'ASC' : 'DESC';
 
 // Construire la requête en fonction du filtre sélectionné
 $query = "SELECT a.*, t.name AS type_name 
-          FROM wp_946105_powerapi_accounts a 
-          INNER JOIN wp_946105_account_types t ON a.account_type_id = t.id";
+          FROM {$wpdb->prefix}powerapi_accounts a 
+          INNER JOIN {$wpdb->prefix}account_types t ON a.account_type_id = t.id";
 
 if (!empty($filter)) {
     // Utiliser des requêtes préparées pour éviter les injections SQL
-    $query .= " WHERE a.account_type_id = %d";
-    $query = $wpdb->prepare($query, $filter);
+    $query .= $wpdb->prepare(" WHERE a.account_type_id = %d", $filter);
 }
 
-// Ajouter le tri par ordre croissant ou décroissant du champ created_at
 $query .= " ORDER BY a.created_at $sort_order";
 
-// Récupérer les comptes en fonction de la requête
 $accounts = $wpdb->get_results($query);
 ?>
 
@@ -35,14 +32,14 @@ $accounts = $wpdb->get_results($query);
         <select name="filter" id="filter" onchange="filterAccounts()">
             <option value="">Tous les comptes</option>
             <?php foreach ($account_types as $type) : ?>
-            <option value="<?php echo esc_attr($type->id); ?>" <?php echo $filter == $type->id ? 'selected' : ''; ?>>
+            <option value="<?php echo esc_attr($type->id); ?>" <?php selected($filter, $type->id); ?>>
                 <?php echo esc_html($type->name); ?></option>
             <?php endforeach; ?>
         </select>
         <label for="sort">Trier par date de création :</label>
         <select name="sort" id="sort" onchange="sortAccounts()">
             <option value="desc">Décroissant</option>
-            <option value="asc" <?php echo $sort_order === 'ASC' ? 'selected' : ''; ?>>Croissant</option>
+            <option value="asc" <?php selected($sort_order, 'ASC'); ?>>Croissant</option>
         </select>
     </div>
     <table class="wp-list-table widefat fixed striped">
@@ -80,7 +77,6 @@ $accounts = $wpdb->get_results($query);
 <script>
 function filterAccounts() {
     var filter = document.getElementById('filter').value;
-    // Utiliser encodeURIComponent pour éviter les failles XSS
     window.location.href = '<?php echo esc_url(admin_url('admin.php?page=powerapi_accounts_list')); ?>&filter=' +
         encodeURIComponent(filter);
 }
@@ -89,7 +85,6 @@ function sortAccounts() {
     var sort = document.getElementById('sort').value;
     var currentUrl = '<?php echo esc_url(admin_url('admin.php?page=powerapi_accounts_list')); ?>';
     var filter = '<?php echo $filter ? "&filter=$filter" : ""; ?>';
-    // Utiliser encodeURIComponent pour éviter les failles XSS
     window.location.href = currentUrl + '&sort=' + encodeURIComponent(sort) + filter;
 }
 </script>
