@@ -83,7 +83,7 @@ class PowerAPIController
         }
 
         // Envoyer une copie de l'e-mail à l'adresse de support
-        $support_email = getenv('SUPPORT_EMAIL'); // Adresse de support
+        $support_email = $_ENV['SUPPORT_EMAIL']; // Adresse de support
         $support_subject = 'Nouveau compte créé sur ma-presence.online';
 
         // Le message est le même que celui envoyé au client, vous pouvez le personnaliser si nécessaire
