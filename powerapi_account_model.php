@@ -28,6 +28,9 @@ class PowerAPIAccountModel {
             );
         } else {
             error_log('Email already exists in ' . $table_name . ': ' . $email);
+        } 
+        if ($wpdb->last_error) {
+            error_log('Error inserting account: ' . $wpdb->last_error);
         }
     }    
 }
