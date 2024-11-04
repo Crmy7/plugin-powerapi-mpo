@@ -52,9 +52,9 @@ class PowerAPIController
         <br>
         * Mot de passe : $password
         <br><br>
-        Il est recommandé de modifier votre mot de passe dès votre première connexion en accédant à votre compte sur la plateforme et en naviguant vers Administration > Mon compte.    
+        Lors de votre première connexion, vous pourrez créer votre fiche d’établissement.
         <br><br>
-        Pour vous connecter, rendez-vous sur la page suivante :
+        Une fois cela réalisé, nous vous recommandons de modifier votre mot de passe d’accès à votre compte sur la plateforme en naviguant vers <strong>Administration</strong> > <strong>Mon compte</strong>.
         <br><br>
         <a href='https://ma-presence.online' style='color: #F15A24;'>https://ma-presence.online</a>
         <br><br>
@@ -112,7 +112,7 @@ class PowerAPIController
             $password = $this->generateRandomPassword();
 
             // URL de l'API pour créer le compte utilisateur
-            $userUrl = "https://api.powerapi.com/api/v1/users";
+            $userUrl = "https://api.powerapi.com/api/v1/organisations/me/users";
             $userHeaders = array(
                 "Content-Type: application/vnd.api+json",
                 "Accept: application/vnd.api+json",
@@ -122,12 +122,13 @@ class PowerAPIController
                 "data" => array(
                     "type" => "users",
                     "attributes" => array(
+                        "name" => $first_name . ' ' . $last_name,
                         "email" => $customer_email,
+                        "language" => "fr",
+                        "permissions_role" => "business_manager",
+                        "invitation" => false,
                         "password" => $password,
                         "password_confirmation" => $password,
-                        "source" => "partner",
-                        "language" => "fr",
-                        "terms_agreement" => true
                     )
                 )
             );
